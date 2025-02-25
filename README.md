@@ -1,54 +1,73 @@
-Java Performance takeaway
+# Java Performance Takeaways
 
--`verbosegc` - use VM key to verbosely show actions of GC
-- use pool of object
-  - use public static final for often used objects
+## Optimize Garbage Collection
+
+- Use `-verbosegc` to display detailed garbage collection (GC) actions.
+
+## Object Management
+
+### Use Object Pools
+- Frequently used objects should be stored as `public static final` constants.
+
+```java
+public class IntegerManager {
+    public static final Integer ZERO = new Integer(0);
+    public static final Integer ONE = new Integer(1);
+    public static final Integer TWO = new Integer(2);
+    public static final Integer THREE = new Integer(3);
+    public static final Integer FOUR = new Integer(4);
+    public static final Integer FIVE = new Integer(5);
+    public static final Integer SIX = new Integer(6);
+    public static final Integer SEVEN = new Integer(7);
+    public static final Integer EIGHT = new Integer(8);
+    public static final Integer NINE = new Integer(9);
+    public static final Integer TEN = new Integer(10);
+}
+```
+
+### Use Weak References
+- Helps in automatic cleanup of objects when they are no longer referenced.
+
+### Prefer Primitive Types
+- Using primitive types instead of objects reduces memory overhead and improves performance.
+- Map object properties into primitive arrays for efficiency:
+
+```java
+class MyClass {
+    int x;
+    boolean y;
+}
+
+class MyClassCollection {
+    int[] xs;
+    boolean[] ys;
     
-    `public class IntegerManager
-    {
-        public static final Integer ZERO = new Integer(0);
-        public static final Integer ONE = new Integer(1);
-        public static final Integer TWO = new Integer(2);
-        public static final Integer THREE = new Integer(3);
-        public static final Integer FOUR = new Integer(4);
-        public static final Integer FIVE = new Integer(5);
-        public static final Integer SIX = new Integer(6);
-        public static final Integer SEVEN = new Integer(7);
-        public static final Integer EIGHT = new Integer(8);
-        public static final Integer NINE = new Integer(9);
-        public static final Integer TEN = new Integer(10);
-    }`
-- use weak references
-- use primitive type
-  - use array to map objects
-    `class MyClass
-    {
-        int x;
-        boolean y;
-    }`
+    public int getXForElement(int i) {
+        return xs[i];
+    }
+    
+    public boolean getYForElement(int i) {
+        return ys[i];
+    }
+}
+```
 
-    `class MyClassCollection
-    {
-        int[] xs;
-        boolean[] ys;
-        public int getXForElement(int i) {return xs[i];}
-        public boolean getYForElement(int i) {return ys[i];}
-        //If possible avoid having to declare element access like the
-        //following method:
-        //public MyClass getElement(int i) {return new MyClass(xs[i], ys[i]);}
-    }`
+## Object Flattening
+- Flattening objects reduces memory consumption and improves cache locality.
+- Instead of:
 
-- use flatten objects
-
-`public class Person {
+```java
+public class Person {
     private Name name;
     private Address address;
 }
+
 class Name {
     private String firstName;
     private String lastName;
     private String[] otherNames;
 }
+
 class Address {
     private int houseNumber;
     private String houseName;
@@ -58,11 +77,13 @@ class Address {
     private String greaterArea;
     private String country;
     private String postCode;
-}`
+}
+```
 
-These three classes collapse into one class:
+- Use a single, flattened class:
 
-`public class Person {
+```java
+public class Person {
     private String firstName;
     private String lastName;
     private String[] otherNames;
@@ -74,44 +95,64 @@ These three classes collapse into one class:
     private String greaterArea;
     private String country;
     private String postCode;
-}`  
+}
+```
 
-Avoid use try catch block
-Reuse exception object
-public static Exception REUSABLE_EXCEPTION = new Exception();
-...
-//Much faster reusing an existing exception
-    `try {
-        throw REUSABLE_EXCEPTION;
-    } catch (Exception e) {...}`
+## Exception Handling Optimization
 
+### Avoid Using `try-catch` Blocks in Performance-Critical Code
 
-The sole disadvantage of reusing an exception instance is that the instance does not have the correct
-stack trace, i.e., the stack trace held by the exception object is the one generated when the exception
-object was created.[2] However, this disadvantage can be important for some situations when the
-trace is important, so be careful. This technique can easily lead to maintenance problems.
-[2] To get the exception object to hold the stack trace that is current when it is thrown, rather than created, you must use the fillInStackTrace(
-) method. Of course, this is what causes the large overhead that you are trying to avoid.
+### Reuse Exception Objects
+- Reusing exceptions avoids unnecessary object creation.
 
-Avoid use Casting
+```java
+public static final Exception REUSABLE_EXCEPTION = new Exception();
 
-The result is that temporary variables using primitive (nonobject) data types are better for
-performance.
+try {
+    throw REUSABLE_EXCEPTION;
+} catch (Exception e) {
+    // Handle exception
+}
+```
 
-Avoid using a method call in the loop termination test. The overhead is significant. 
-bad example:
-`for(int i = 0; i < collection.size( ); i++) //or collection.length( )`
+> **Note:** Reusing exceptions can lead to incorrect stack traces. Use `fillInStackTrace()` if stack trace accuracy is critical, though it incurs performance overhead.
 
-Use padding to prevent false sharing to improve cache locality
+## Code Optimization Techniques
 
-Use bit masked for calculation idx if size of array is powerr of 2
+### Avoid Casting
+- Casting introduces overhead; prefer primitive data types where possible.
 
+### Optimize Loops
+- Avoid method calls in loop termination conditions.
 
-Multithreading does not mean high performance, single thread approach could be much faster for example LMAX Disruptor
+**Bad Example:**
+```java
+for (int i = 0; i < collection.size(); i++) {
+    // Code
+}
+```
 
-If your algorithm can guarantee that any given resource is modified by only one thread, then mutual exclusion is unnecessary.
+### Prevent False Sharing with Padding
+- Align data structures properly to avoid CPU cache conflicts.
 
-This CAS approach is significantly more efficient than locks because it does not require a context switch to the kernel for arbitration. However CAS operations are not free of cost. The processor must lock its instruction pipeline to ensure atomicity and employ a memory barrier to make the changes visible to other threads. CAS operations are available in Java by using the java.util.concurrent.Atomic* classes.
-The ideal algorithm would be one with only a single thread owning all writes to a single resource with other threads reading the results.
+### Use Bit Masking for Index Calculations
+- If the array size is a power of two, use bitwise operations for fast indexing.
 
-Use CPU Affinity to pin thread to the specific core
+## Multithreading Considerations
+
+- **Multithreading does not always mean high performance** – single-threaded approaches can sometimes be faster (e.g., LMAX Disruptor).
+- If an algorithm guarantees that only one thread modifies a resource, mutual exclusion is unnecessary.
+
+### Use Compare-And-Swap (CAS) for Efficiency
+- CAS is more efficient than locks as it avoids context switches.
+- Java provides CAS operations via `java.util.concurrent.atomic` classes.
+
+> **Ideal Scenario:** A single thread owns all writes to a resource while other threads only read.
+
+### CPU Affinity for Thread Optimization
+- Pin threads to specific CPU cores to maximize cache efficiency.
+
+## Conclusion
+
+Optimizing Java performance involves careful management of memory, object creation, exception handling, and multithreading strategies. By leveraging techniques such as object pooling, primitive types, loop optimizations, and CAS operations, developers can achieve significant performance gains in Java applications.
+
