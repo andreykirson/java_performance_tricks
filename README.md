@@ -25,6 +25,8 @@ public class IntegerManager {
 }
 ```
 
+### Use Off heap memory to avoid GC overhead
+
 ### Use Weak References
 - Helps in automatic cleanup of objects when they are no longer referenced.
 
